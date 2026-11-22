@@ -1,143 +1,221 @@
 # AI-Based Delivery Robot Planning System
-**Autonomous Multi-Phase Classical Planning & Dynamic Route Optimization**
 
-![System Version](https://img.shields.io/badge/System-v2.4-blue.svg)
-![AI-Engine](https://img.shields.io/badge/Planning-A*%20%2F%20Dijkstra%20%2F%20STRIPS-00d2ff.svg)
-![Platform](https://img.shields.io/badge/Platform-Pure%20Client--Side%20Web-success.svg)
-![Status](https://img.shields.io/badge/Status-Demonstration--Ready-brightgreen.svg)
+**Classical AI planning and heuristic search for autonomous pickup-and-delivery robots, running entirely in the browser.**
 
----
+![Version](https://img.shields.io/badge/version-2.4-blue.svg)
+![Planning](https://img.shields.io/badge/planning-STRIPS%20%7C%20A*%20%7C%20Dijkstra-00a8d6.svg)
+![Platform](https://img.shields.io/badge/platform-client--side%20web-success.svg)
+![Theme](https://img.shields.io/badge/theme-dark%20%7C%20light-lightgrey.svg)
+![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)
 
-## 1. Project Overview
-
-The **AI-Based Delivery Robot Planning System** is a full-featured, engineering-grade web application that synthesizes and simulates autonomous robot delivery operations in discrete spatial environments.
-
-Given an initial robot state, an item to collect at a pickup coordinate, and a target destination locker, the system formulates the mission as a classical automated planning problem. It formally verifies precondition guards (boundary admissibility, spatial clearance, reachability, and cargo payload status) before synthesizing two consecutive movement phases:
-1. **Phase 1:** Navigation from starting coordinate $(x_0, y_0)$ to item pickup $(x_p, y_p)$, culminating in a `PICKUP` operator.
-2. **Phase 2:** Transport of the loaded payload to the destination $(x_d, y_d)$, culminating in a `DROPOFF` operator.
-
-The planner computes alternative routes across five algorithmic heuristic strategies and selects the **lowest-cost valid plan**. The user can observe real-time robot movement, state changes, telemetry logs, and step-by-step precondition traces.
+> An Artificial Intelligence mini project demonstrating classical planning and heuristic search.
 
 ---
 
-## 2. Key Features
+## Table of Contents
 
-- **Classical Automated Planning Formulation:**
-  - State space: $S = \langle (x_r, y_r), \text{has\_cargo}, (x_p, y_p), (x_d, y_d), \text{delivered}, \text{energy} \rangle$.
-  - STRIPS-style action schemas: `MOVE(from, to, dir)`, `PICKUP(item, loc)`, `DROPOFF(item, loc)`.
-  - Comprehensive Precondition Guard Verification matrix.
-- **Multi-Algorithm Heuristic Search Engine:**
-  - **A\* Search with Manhattan Distance Heuristic:** Optimal and admissible for 4-directional grid corridors.
-  - **A\* Search with Octile/Diagonal Heuristic:** Optimized for 8-directional kinematics with $\sqrt{2} \approx 1.414$ diagonal step cost.
-  - **Dijkstra's Algorithm (Uniform Cost Search):** Guaranteed shortest-path exploration through non-uniform terrain cost fields.
-  - **Safety-First / Cautious Planner:** Dynamic obstacle clearance field penalizing navigation near walls.
-  - **Greedy Best-First Search:** Demonstrates greedy heuristic behavior vs optimal planning.
-- **Multi-Plan Comparison & Automatic Optimal Selection:**
-  - Evaluates candidate plans side-by-side.
-  - Comparison metrics: Total physical steps, cumulative energy/movement cost, obstacle clearance index, nodes expanded, execution time, and mathematical justification.
-- **Visual Grid Simulation Engine:**
-  - Interactive grid editing: Click to draw or erase obstacles, set rough terrain (mud with $\times 3.5$ cost penalty), move robot start, pickup, or destination.
-  - Step-by-step playback controls (Play, Pause, Step Forward, Step Back, Reset, Timeline Scrubber, Speed 0.5x to 5.0x).
-  - Live animated robot sprite with visual cargo indicator and orientation.
-- **Built-in Web Audio Synthesizer:**
-  - Zero external media dependencies; generates real-time audio ticks, pickup chimes, delivery victory fanfares, and error buzzes using the standard Web Audio API.
-- **All 6 Benchmark Scenarios Pre-configured (One-Click Selection):**
-  1. *Normal Delivery:* Complete mission from pickup to destination around obstacles.
-  2. *Blocked Destination:* Destination enclosed by obstacles; reports goal infeasibility before execution.
-  3. *Unreachable Pickup Point:* Pickup enclosed by barriers; aborts Phase 1 safely.
-  4. *Item Already at Destination:* Pickup equals destination; executes no-op zero-cost transit.
-  5. *Multiple Routes with Different Costs:* Compares high-friction mud corridor ($\text{Cost}=4.0/\text{step}$) against a longer paved perimeter ($\text{Cost}=1.0/\text{step}$), proving cost minimization over physical distance.
-  6. *Invalid Task Specification:* Catches missing inputs, negative/out-of-bounds coordinates, and obstacle collisions gracefully.
-- **Mission History & Data Export:**
-  - Live activity logging stream in terminal style.
-  - Delivery history table with one-click mission replays.
-  - Export plan report as JSON and delivery history as CSV.
+1. [Overview](#1-overview)
+2. [Problem Statement](#2-problem-statement)
+3. [Key Features](#3-key-features)
+4. [How the Planner Works](#4-how-the-planner-works)
+5. [Search Algorithms](#5-search-algorithms)
+6. [Benchmark Scenarios](#6-benchmark-scenarios)
+7. [Technology Stack](#7-technology-stack)
+8. [Project Structure](#8-project-structure)
+9. [Getting Started](#9-getting-started)
+10. [Using the Application](#10-using-the-application)
+11. [Mathematical Formulation](#11-mathematical-formulation)
+12. [Limitations and Future Scope](#12-limitations-and-future-scope)
+13. [License](#13-license)
 
 ---
 
-## 3. Technology Stack
+## 1. Overview
 
-- **HTML5:** Semantic markup, responsive viewport layout, accessibility.
-- **CSS3:** Custom Modern Dark Robotics Theme (Dark Navy, Slate, Electric Cyan, Neon Blue, Emerald Green), CSS Grid, Flexbox, glassmorphism filters, keyframe animations.
-- **JavaScript (ES6+):** Pure vanilla JavaScript without external framework dependencies. Real A*, Dijkstra, Priority Queue, and state-space planning algorithms.
-- **Web Audio API:** Hardware-accelerated audio synthesis for real-time auditory feedback.
-- **Font Awesome 6 (CDN with fallback):** Robotics and navigational iconography.
+This project plans and simulates a delivery robot that must **collect an item from a pickup point and deliver it to a destination** on a 2D grid containing obstacles and rough terrain.
 
-> **Zero Dependencies:** No Node.js, React, npm, Python, or local web server required. Runs directly by opening `index.html` in Google Chrome or any modern browser.
+A mission is modelled as a **classical automated planning problem**. Before any search begins, the system checks the preconditions (valid coordinates, free cells, reachability). It then plans the mission in two phases:
 
----
+| Phase | Goal | Ends with |
+|-------|------|-----------|
+| **Phase 1** | Robot start → item pickup | `PICKUP` action |
+| **Phase 2** | Pickup → destination | `DROPOFF` action |
 
-## 4. Code & Directory Structure
+Several search strategies each produce a candidate plan. The system compares them and automatically selects the **lowest-cost valid plan**, then animates the delivery step by step with live telemetry.
+
+## 2. Problem Statement
+
+Delivery robots must reach goals in environments with obstacles and uneven terrain. In practice:
+
+- The **shortest** path is not always the **cheapest**; mud or rough terrain costs more energy per step.
+- Missions can be **infeasible**: the destination may be walled in, the pickup unreachable, or the input invalid.
+- Manual route planning is slow, error-prone, and not cost-optimal.
+
+This project solves these problems by verifying feasibility first and then selecting the cost-optimal plan among several algorithms.
+
+## 3. Key Features
+
+- **Formal planning model**: state space, STRIPS-style actions (`MOVE`, `PICKUP`, `DROPOFF`) and a precondition verification table.
+- **Five search strategies**: A\* (Manhattan), A\* (Octile), Dijkstra, Safety-First, and Greedy Best-First.
+- **Automatic plan comparison**: compares steps, movement cost, obstacle clearance, nodes expanded and compute time, then picks the best valid plan.
+- **Interactive grid simulation**: draw obstacles, add rough terrain, and move the robot start, pickup and destination directly on the grid.
+- **Playback controls**: play/pause, step through the plan, reset, timeline scrubber, and speed from 0.5x to 5.0x.
+- **Live telemetry**: robot position, cargo status, energy consumed, current action, milestones and a real-time event log.
+- **Six preloaded benchmark scenarios**, including failure and edge cases.
+- **Configurable missions**: item name, priority, grid size (8x8, 10x10, 12x12 or 15x15), movement mode (4- or 8-directional), mud cost multiplier, safety weight, and obstacle density presets.
+- **Dark and light themes** with a one-click toggle; your choice is remembered in the browser.
+- **Sound effects** synthesised with the Web Audio API (no audio files needed).
+- **Mission history and export**: delivery history table, plan export as **JSON**, history export as **CSV**.
+
+## 4. How the Planner Works
 
 ```
-delivery-robot-planner/
+Mission Input ──► Precondition Check ──► State-Space Model ──► Multi-Algorithm Search
+                                                                        │
+        Simulation & Report ◄────────── Best Plan Selection ◄──────────┘
+```
+
+1. **Mission input**: item, priority, robot start, pickup, destination, obstacles, terrain and algorithm settings.
+2. **Precondition check**: verifies grid bounds, that the start, pickup and destination are not obstacles, and that a continuous path exists for each phase.
+3. **State-space model**: a state holds the robot position, whether it carries cargo, pickup and destination, delivery status and accumulated cost. Actions are `MOVE(from, to, direction)`, `PICKUP(item, location)` and `DROPOFF(item, location)`.
+4. **Search**: Phase 1 and Phase 2 paths are computed by each algorithm, using a priority queue.
+5. **Best plan selection**: valid plans are sorted by **lowest total cost**, then **higher obstacle clearance**, then **fewer steps**.
+6. **Simulation and report**: the chosen plan is animated on the grid and can be exported.
+
+If a precondition fails (for example, a blocked destination), the system reports the failure **before** the robot moves and marks the plan as infeasible.
+
+## 5. Search Algorithms
+
+| Algorithm | Heuristic / Cost model | Behaviour |
+|-----------|------------------------|-----------|
+| **A\* (Manhattan)** | `h = \|dx\| + \|dy\|` | Optimal and admissible for 4-directional movement |
+| **A\* (Octile)** | Octile distance, diagonal step ≈ 1.414 | Suited to 8-directional movement |
+| **Dijkstra (Uniform Cost)** | No heuristic | Guaranteed minimum cost across non-uniform terrain |
+| **Safety-First** | Adds a penalty near obstacles (safety weight) | Prefers paths with more wall clearance |
+| **Greedy Best-First** | Heuristic only | Fast but not guaranteed optimal; shown for comparison |
+
+**Terrain costs:** normal cells cost 1.0 per step; rough terrain (mud) costs the configurable multiplier (default 3.5; Scenario 5 uses 4.0).
+
+## 6. Benchmark Scenarios
+
+Select a scenario from the **Quick Scenarios** menu or from the cards on the Dashboard.
+
+| # | Scenario | What it demonstrates | Expected result |
+|---|----------|----------------------|-----------------|
+| 1 | Normal Delivery | Start (0,0), pickup (1,1), destination (8,8) around obstacles | Full two-phase plan succeeds |
+| 2 | Blocked Destination | Destination enclosed by obstacles | Phase 2 flagged infeasible; plan fails before moving |
+| 3 | Unreachable Pickup | Pickup enclosed by barriers | Phase 1 flagged infeasible; robot never leaves start |
+| 4 | Item Already at Destination | Pickup equals destination | Zero-cost Phase 2 (no-op) |
+| 5 | Multiple Routes and Costs | Short mud corridor vs longer paved route | Planner chooses the longer but cheaper paved route |
+| 6 | Invalid Task Specification | Negative or out-of-bounds coordinates, missing input | Validation banner with corrective advice, no crash |
+
+## 7. Technology Stack
+
+| Layer | Technology |
+|-------|------------|
+| Markup | HTML5 |
+| Styling | CSS3 (CSS Grid, Flexbox, CSS variables for dark/light themes, animations) |
+| Logic | Vanilla JavaScript (ES6+), no frameworks |
+| Audio | Web Audio API |
+| Icons and fonts | Font Awesome 6 and Google Fonts (Inter, JetBrains Mono) via CDN |
+
+No Node.js, npm, Python or local server is required. An internet connection is only needed to load icons and fonts; the planner itself works offline.
+
+## 8. Project Structure
+
+```
+AI_Based_Delivery_Robot_Planning_System/
 │
-├── index.html        # Main presentation & application markup
-├── style.css         # Dark navy/blue robotics design system & grid layout
-├── script.js         # Classical planner, pathfinding algorithms & simulation controller
-└── README.md         # Comprehensive engineering report & documentation
+├── index.html     # Application layout: dashboard, mission form, simulation, results, history
+├── style.css      # Design system, grid styling, dark theme and light theme
+├── script.js      # Planner, search algorithms, simulation controller, theme switcher
+└── README.md      # Project documentation
 ```
 
----
+## 9. Getting Started
 
-## 5. How to Run the Application
+**Requirements:** any modern web browser (Google Chrome recommended).
 
-1. Locate the `delivery-robot-planner/` folder.
-2. Double-click **`index.html`** or right-click and choose **Open with &rarr; Google Chrome**.
-3. The dashboard will initialize automatically with **Scenario 1 (Normal Delivery)** loaded and planned.
-4. Click **"Run Simulation"** in the top header or navigate to the **"Robot Simulation Grid"** tab to watch the autonomous robot collect and deliver the package.
+```bash
+# 1. Clone the repository
+git clone <repository-url>
 
----
+# 2. Open the project folder
+cd AI_Based_Delivery_Robot_Planning_System
 
-## 6. Testing & Demonstration Guide
+# 3. Open index.html in your browser (double-click it, or run one of these)
+#    macOS:    open index.html
+#    Windows:  start index.html
+#    Linux:    xdg-open index.html
+```
 
-### Testing the 6 Benchmark Scenarios:
-Click the **"Quick Scenarios"** dropdown in the top header or click any of the 6 scenario cards on the Dashboard:
+The app starts with **Scenario 1** loaded and planned.
 
-1. **Scenario 1: Normal Delivery**
-   - Click *Scenario 1*.
-   - Notice the Start at `(0,0)`, Pickup at `(1,1)`, and Destination at `(8,8)`.
-   - Click *"Run Simulation"* &rarr; Robot navigates Phase 1, retrieves `Medical Emergency Package`, navigates Phase 2, and drops off at destination.
-2. **Scenario 2: Blocked Destination**
-   - Click *Scenario 2*.
-   - The destination locker `(8,8)` is surrounded by a ring of obstacles.
-   - Click *"Generate AI Plan"* &rarr; Preconditions table flags *Phase 2 Infeasible*. Status shows `PLAN FAILED`. System prevents futile travel.
-3. **Scenario 3: Unreachable Pickup Point**
-   - Click *Scenario 3*.
-   - The pickup item `(4,4)` is enclosed inside barriers.
-   - Click *"Generate AI Plan"* &rarr; Preconditions table flags *Phase 1 Infeasible*. Rover aborts before leaving `(0,0)`.
-4. **Scenario 4: Item Already at Destination**
-   - Click *Scenario 4*.
-   - Pickup is `(6,6)` and Destination is `(6,6)`.
-   - System plans direct transit to `(6,6)` and executes instant handoff with Phase 2 transit cost = `0.0`.
-5. **Scenario 5: Multiple Routes with Different Costs**
-   - Click *Scenario 5*.
-   - Direct corridor has heavy mud ($\text{Cost multiplier} = 4.0$), while outer corridor has clean pavement ($\text{Cost} = 1.0$).
-   - Open the **"Alternative Routes"** tab. Observe how the planner chooses the physically longer path because its cumulative energy cost is significantly lower!
-6. **Scenario 6: Invalid Task Specification**
-   - Click *Scenario 6*.
-   - Form loads invalid negative coordinates and missing name.
-   - System displays a validation error banner with precise corrective advice without throwing unhandled exceptions.
+## 10. Using the Application
 
----
+| Page | Purpose |
+|------|---------|
+| **Dashboard** | KPI cards (tasks, deliveries, failures, status, pickup, destination, total cost, route length), mission overview, scenario cards, live event stream |
+| **Create Task and Scenarios** | Define the item, priority, coordinates, grid size, movement mode, algorithm, terrain cost and obstacles |
+| **Robot Simulation Grid** | Edit the grid, play the plan, watch telemetry and the live log |
+| **AI Planning Results** | Precondition verification table and the step-by-step action schedule |
+| **Alternative Routes** | Side-by-side comparison of all algorithms with cost and safety charts |
+| **Delivery History** | Log of planned missions with CSV export |
+| **About and Formulation** | Formal problem description, action schemas and heuristics |
 
-## 7. Mathematical Formulation
+**Quick walkthrough**
 
-### 7.1 State Space $\mathcal{S}$
-A state $s \in \mathcal{S}$ is defined as:
-$$s = \langle x_r, y_r, \text{has\_cargo}, x_p, y_p, x_d, y_d, \text{delivered}, \text{cost} \rangle$$
+1. Pick a scenario from **Quick Scenarios**.
+2. Click **Generate AI Plan**, then **Run Simulation**.
+3. Open **AI Planning Results** to read the precondition checks and action schedule.
+4. Open **Alternative Routes** to see why the selected plan won.
+5. In **Robot Simulation Grid**, draw an obstacle, click **Re-Calculate**, and watch the plan adapt.
+6. Use the **Light Mode / Dark Mode** button in the top bar to switch themes.
 
-### 7.2 Heuristic Admissibility
-For 4-directional orthogonal movement on a grid with non-negative step costs:
+## 11. Mathematical Formulation
+
+**State**
+
+$$s = \langle x_r,\; y_r,\; \text{has\_cargo},\; x_p,\; y_p,\; x_d,\; y_d,\; \text{delivered},\; \text{cost} \rangle$$
+
+**Actions**
+
+- `MOVE(from, to, dir)`: precondition: target cell is inside the grid and not an obstacle; effect: robot position changes and cost increases by the terrain cost.
+- `PICKUP(item, loc)`: precondition: robot is at the pickup cell and carries nothing; effect: `has_cargo = true`.
+- `DROPOFF(item, loc)`: precondition: robot is at the destination and carries the item; effect: `delivered = true`.
+
+**Manhattan heuristic (4-directional movement)**
+
 $$h(n) = |x_n - x_g| + |y_n - y_g|$$
-Because any path without diagonal movement requires at least $|x_n - x_g|$ horizontal and $|y_n - y_g|$ vertical moves, $h(n) \le h^*(n)$ holds unconditionally, guaranteeing that $A^*$ returns the globally optimal shortest path.
+
+This never overestimates the true remaining cost when every step costs at least 1, so $h(n) \le h^*(n)$ and A\* returns an optimal path.
+
+**Octile heuristic (8-directional movement)**
+
+$$h(n) = \max(\Delta x, \Delta y) + (\sqrt{2} - 1)\,\min(\Delta x, \Delta y)$$
+
+**Total plan cost**
+
+$$C_{\text{plan}} = C_{\text{phase 1}} + C_{\text{phase 2}}$$
+
+## 12. Limitations and Future Scope
+
+**Current limitations**
+
+- Single robot on a static grid; obstacles change only when the user edits them.
+- Mission history is kept for the current session and is not stored permanently.
+
+**Future scope**
+
+- Multiple robots with collision avoidance and task allocation.
+- Dynamic or moving obstacles with real-time re-planning.
+- Larger maps and additional algorithms (D\* Lite, Jump Point Search).
+- Persistent history and importing maps from files.
+
+## 13. License
+
+This project is released for educational use. Add a license of your choice (for example MIT) in a `LICENSE` file.
 
 ---
 
-## 8. Presentation Tips for Academic Review
-
-1. **Start at Dashboard:** Show the 8 KPI cards summarizing operational metrics.
-2. **Showcase the 6 Scenarios:** Emphasize that the system handles not just the ideal case, but edge cases such as blockages, unreachable goals, and cost trade-offs.
-3. **Open "AI Planning Results":** Walk the evaluators through the formal precondition verification table and step schedule.
-4. **Open "Alternative Routes":** Point out the comparison table and explain how the system evaluates multiple heuristics (A* Manhattan, Octile, Dijkstra, Cautious Safety, and Greedy BFS) to guarantee cost-optimal execution.
-5. **Demonstrate Interactive Canvas:** In the "Robot Simulation Grid", draw an obstacle while simulation is paused, click *"Re-Calculate"*, and watch the robot dynamically navigate around the new obstacle.
+*Built to demonstrate classical AI planning and heuristic search.*

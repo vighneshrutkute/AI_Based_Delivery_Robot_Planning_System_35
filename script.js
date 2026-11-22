@@ -2124,3 +2124,36 @@
   }
 
 })();
+
+/* ==========================================================================
+   THEME SWITCHER (Dark / Light)  - paste at the very END of script.js
+   ========================================================================== */
+(function () {
+  const STORAGE_KEY = 'robot-planner-theme';
+  const root = document.documentElement;
+
+  function applyTheme(theme) {
+    root.setAttribute('data-theme', theme);
+    const btn = document.getElementById('btn-theme-toggle');
+    if (!btn) return;
+    const isDark = theme === 'dark';
+    // Button shows the theme you will switch TO
+    btn.querySelector('i').className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+    btn.querySelector('span').textContent = isDark ? 'Light Mode' : 'Dark Mode';
+    btn.title = isDark ? 'Switch to light theme' : 'Switch to dark theme';
+  }
+
+  function toggleTheme() {
+    const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.classList.add('theme-transition');           // smooth colour fade
+    applyTheme(next);
+    try { localStorage.setItem(STORAGE_KEY, next); } catch (e) {}
+    setTimeout(() => root.classList.remove('theme-transition'), 400);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    applyTheme(root.getAttribute('data-theme') || 'dark');
+    const btn = document.getElementById('btn-theme-toggle');
+    if (btn) btn.addEventListener('click', toggleTheme);
+  });
+})();
